@@ -4,7 +4,7 @@ _prev = 0.0  # for smoothing
 
 def rms_level(samples, rms_ref=5000.0, alpha=0.25):
 
-    #Returns a smoothed loudness level in [0,1].
+    # Returns a smoothed loudness level in [0,1].
     # DC-removes samples
     # Computes RMS
     # Normalizes by rms_ref
