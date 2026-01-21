@@ -1,4 +1,3 @@
-# main.py
 import time
 import display
 import audio
@@ -10,8 +9,9 @@ display.init_display()
 print("Init audio...")
 audio.init_audio()
 
-# 8 band center frequencies (Hz) — tuned to react to voice/music
-FREQS = [100, 100 + 192, 100 + 192 + 192, 100 + 3 * 192, 100 + 4 * 192, 100 + 5*192, 100 + 6 * 192]
+# Band center frequencies (Hz)
+FREQS = [80, 300, 500, 700, 900, 1100, 1600, 2500, 4000, 6000]
+WEIGHTS = [1.0] * len(FREQS)
 
 state = None
 
@@ -22,18 +22,23 @@ next_frame = time.ticks_ms()
 print("Running frequency bars (Ctrl+C to stop)")
 try:
     while True:
-        samples = audio.read_block()        # --- software mic gain ---
+        samples = audio.read_block()
+
+        # Software mic gain (kept as-is; we can vectorize later)
         GAIN = 10.0
         samples = [max(-32768, min(32767, int(x * GAIN))) for x in samples]
 
+        # Use a lower alpha to reduce jitter (smoother bars)
         levels, state = bands.compute_bars(
             samples,
             sample_rate=16000,
             freqs=FREQS,
-            ref_power=1e9,   # tuning knob
-            alpha=0.35,      # smoothing per band
-            _state=state
+            ref_power=1e9,
+            alpha=0.20,
+            _state=state,
         )
+
+        levels = [min(1.0, levels[i] * WEIGHTS[i]) for i in range(len(levels))]
 
         now = time.ticks_ms()
         if time.ticks_diff(now, next_frame) >= 0:

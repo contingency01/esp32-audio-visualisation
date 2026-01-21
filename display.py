@@ -1,10 +1,6 @@
-# display.py
-
 from machine import Pin, SPI
 import time
 import config
-
-# --- Minimal ST7735 driver (simplified, not full-featured) ---
 
 class ST7735:
     def __init__(self, spi, cs, dc, rst, width, height):
@@ -14,8 +10,8 @@ class ST7735:
         self.rst = rst
         self.width = width
         self.height = height
-        self.x_offset = 2
-        self.y_offset = 1
+        self.x_offset = 1
+        self.y_offset = 2
 
         # Set control pins
         self.cs.init(Pin.OUT, value=1)
@@ -67,9 +63,8 @@ class ST7735:
        self.write_cmd(0x3A)  # COLMOD: Pixel Format
        self.write_data(bytearray([0x05]))  # 16-bit color
 
-       self.write_cmd(0x36)  # MADCTL
-       # Try this orientation first:
-       self.write_data(bytearray([0b00000000]))
+       self.write_cmd(0x36)  # MADCTL (Memory Data Access Control)
+       self.write_data(bytearray([0x60]))  # rotate 90° (typical)
 
        # Display inversion OFF
        self.write_cmd(0x20)
@@ -140,20 +135,17 @@ class ST7735:
             self.write_data(line)
 
 
-# --- High-level display functions for your project ---
 
 _tft = None  # global internal instance
 
-# --- add at bottom of display.py ---
 
 _prev_heights = None
 
-_prev_heights = None
 
 def draw_bars(levels):
-    """
-    Multi-bar draw with per-frame capped movement (prevents big wipes).
-    """
+
+    # Multi-bar draw with per-frame capped movement (prevents big wipes).
+
     global _prev_heights
     if _tft is None:
         return
@@ -165,16 +157,18 @@ def draw_bars(levels):
     W = _tft.width
     H = _tft.height
 
-    left = 6
-    right = 6
+    left = 2
+    right = 2
     top = 6
     bottom = 6
+    gap = 1
 
     usable_w = W - left - right
     usable_h = H - top - bottom
 
     gap = 2
     bar_w = (usable_w - gap * (n - 1)) // n
+    bar_w = max(1, bar_w - 1)  # make bars slightly thinner
     if bar_w < 1:
         bar_w = 1
 
@@ -184,7 +178,7 @@ def draw_bars(levels):
 
     bg = 0x0000
 
-    # Cap how much each bar can move per frame to avoid huge SPI wipes
+    # Cap how much each bar can move per frame to avoid huge wipes
     STEP_UP = 12    # pixels per frame up
     STEP_DOWN = 12   # pixels per frame down
 
@@ -222,18 +216,17 @@ def draw_bars(levels):
 
 
 
-
 def init_display():
-    """
-    Initialize SPI and TFT display.
-    Must be called once from main.py.
-    """
+    
+    # Initialize SPI and TFT display.
+    # Must be called once from main.py
+
     global _tft
 
     # SPI bus
     spi = SPI(
         1,
-        baudrate=1_000_000,  # 20 MHz, we can tune this later if unstable
+        baudrate=20_000_000, 
         polarity=0,
         phase=0,
         sck=Pin(config.TFT_SCK_PIN),
@@ -257,22 +250,6 @@ def init_display():
     _tft.fill(0x0000)  # start with a clean black screen
 
 
-def test_rectangles():
-    """
-    Simple function to test drawing: some colored rectangles.
-    """
-    if _tft is None:
-        return
-    # Draw a few rectangles
-    _tft.fill(0x0000)  # clear
-
-    # vertical bar
-    _tft.fill_rect(10, 40, 20, 80, 0xF800)  # red
-    _tft.fill_rect(40, 20, 20, 120, 0x07E0) # green
-    _tft.fill_rect(70, 60, 20, 60, 0x001F)  # blue
-
-
-# --- add to display.py (near the bottom) ---
 
 _last_h = 0
 
@@ -299,7 +276,7 @@ def draw_vu(level):
 
     STEP_DOWN = 5  # smooth fall speed
 
-    # Instant rise, capped fall
+    # Instant rise, slow fall
     if target_h > _last_h:
         new_h = target_h
     elif target_h < _last_h:
@@ -325,12 +302,8 @@ def draw_vu(level):
 
 
 def _color_gradient(pos, total, level=1.0):
-    """
-    pos: bar index (0 .. total-1)
-    total: number of bars
-    level: bar height factor (0..1) to slightly boost brightness
-    Returns 16-bit RGB565 color.
-    """
+    # Color gradient for the bars
+
     if total <= 1:
         t = 0.0
     else:

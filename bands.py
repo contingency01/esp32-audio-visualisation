@@ -1,84 +1,93 @@
-# bands.py
 import math
+from ulab import numpy as np
+
 
 def _prepare(freqs, sample_rate, n):
-    """
-    Precompute Goertzel parameters for each target frequency.
-    """
-    params = []
+
+    #Prepare cosine/sine basis matrices
+    # Returns:
+    # cos_mat: shape (nbands, n)
+    # sin_mat: shape (nbands, n)
+
+    t = np.arange(n, dtype=np.float)
+    cos_rows = []
+    sin_rows = []
+
     for f in freqs:
+        # k-rounding
         k = int(0.5 + (n * f) / sample_rate)
         w = (2.0 * math.pi * k) / n
-        cos_w = math.cos(w)
-        sin_w = math.sin(w)
-        coeff = 2.0 * cos_w
-        params.append((cos_w, sin_w, coeff))
-    return params
+
+        ang = w * t
+        cos_rows.append(np.cos(ang))
+        sin_rows.append(np.sin(ang))
+
+    # ulab: np.array(list_of_rows) produces a 2D array
+    cos_mat = np.array(cos_rows)
+    sin_mat = np.array(sin_rows)
+    return cos_mat, sin_mat
 
 
-def _goertzel_power_with_params(samples, mean, cos_w, sin_w, coeff):
-    """
-    Goertzel power using precomputed parameters and shared mean.
-    """
-    s0 = 0.0
-    s1 = 0.0
-    s2 = 0.0
+def compute_bars(samples, freqs, sample_rate, ref_power=1e9, alpha=0.35, _state=None):
+    
 
-    for x in samples:
-        x = x - mean
-        s0 = x + coeff * s1 - s2
-        s2 = s1
-        s1 = s0
+    #Inputs:
+    #samples: ulab numpy 1D array 
+    #freqs: list of target frequencies
+    #sample_rate
+    #ref_power: tuning 
+    #alpha: smoothing factor per band
+    #_state: pass-through cache dict
 
-    real = s1 - s2 * cos_w
-    imag = s2 * sin_w
-    return real * real + imag * imag
-
-
-def compute_bars(samples, sample_rate, freqs, ref_power=1e6, alpha=0.35, _state=None):
-    """
-    Compute normalized 0..1 levels for each frequency in freqs.
-    Optimized:
-      - precomputes trig/coeff once per (freqs, sample_rate, block_size)
-      - computes mean once per block
-    Returns: (levels, state)
-    """
-    n = len(samples)
-    if n == 0:
-        return [], _state if _state is not None else {"prev": []}
 
     if _state is None:
         _state = {}
 
-    # Initialize / refresh cached parameters if needed
-    sig = (tuple(freqs), sample_rate, n)
+    if samples is None:
+        nb = len(freqs)
+        if "prev" not in _state or len(_state["prev"]) != nb:
+            _state["prev"] = np.zeros(nb, dtype=np.float)
+        return _state["prev"].tolist(), _state
+
+    # Causes errors if not
+    if not hasattr(samples, "astype"):
+        # Keep it int16 to minimize RAM for now
+        samples = np.array(samples, dtype=np.int16)
+
+    n = len(samples)
+    nb = len(freqs)
+
+    sig = (tuple(freqs), int(sample_rate), int(n))
     if _state.get("sig") != sig:
         _state["sig"] = sig
-        _state["params"] = _prepare(freqs, sample_rate, n)
-        _state["prev"] = [0.0] * len(freqs)
+        _state["cos_mat"], _state["sin_mat"] = _prepare(freqs, sample_rate, n)
+        _state["prev"] = np.zeros(nb, dtype=np.float)
 
-    params = _state["params"]
+    cos_mat = _state["cos_mat"]
+    sin_mat = _state["sin_mat"]
     prev = _state["prev"]
 
-    # Mean once (DC removal)
-    s = 0
-    for x in samples:
-        s += x
-    mean = s / n
+    # Convert once to float and remove DC (mean)
+    # NOTE: apparently some ulab firmware builds don't provide ndarray.astype()
 
-    out = []
-    for i, (cos_w, sin_w, coeff) in enumerate(params):
-        p = _goertzel_power_with_params(samples, mean, cos_w, sin_w, coeff)
+    x = np.array(samples, dtype=np.float)
+    x = x - np.mean(x)
 
-        lvl = p / ref_power
-        if lvl > 1.0:
-            lvl = 1.0
-        elif lvl < 0.0:
-            lvl = 0.0
+    # Vectorized Goertzel energy at each band frequency:
+    # real_i = sum x[t]*cos(w_i t)
+    # imag_i = sum x[t]*sin(w_i t)
+    # power_i = real_i^2 + imag_i^2
+    
+    real = np.dot(cos_mat, x)
+    imag = np.dot(sin_mat, x)
+    p = real * real + imag * imag
 
-        # Smooth per band
-        lvl = alpha * lvl + (1.0 - alpha) * prev[i]
-        prev[i] = lvl
-        out.append(lvl)
+    # Normalization
+    lvl = p / ref_power
+    lvl = np.clip(lvl, 0.0, 1.0)
 
-    return out, _state
+    # Smooth per band: lvl = alpha*lvl + (1-alpha)*prev
+    lvl = alpha * lvl + (1.0 - alpha) * prev
+    _state["prev"] = lvl
+
+    return lvl.tolist(), _state
