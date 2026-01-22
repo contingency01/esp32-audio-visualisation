@@ -24,11 +24,11 @@ try:
     while True:
         samples = audio.read_block()
 
-        # Software mic gain (kept as-is; we can vectorize later)
+        # Software mic gain
         GAIN = 10.0
         samples = [max(-32768, min(32767, int(x * GAIN))) for x in samples]
 
-        # Use a lower alpha to reduce jitter (smoother bars)
+        # Low alpha to reduce jitter
         levels, state = bands.compute_bars(
             samples,
             sample_rate=16000,

@@ -1,10 +1,10 @@
 from machine import I2S, Pin
 from ulab import numpy as np
 
-# Pin mapping (your wiring)
+# Pin mapping for I2S on ESP32-S3
 _I2S_BCK = 14   # SCK
 _I2S_WS  = 25   # WS / LRCLK
-_I2S_SD  = 34   # SD (input-only is fine)
+_I2S_SD  = 34   # SD: input only
 
 # Audio settings
 _RATE = 16000
@@ -25,21 +25,21 @@ def init_audio():
         bits=16,
         format=I2S.MONO,
         rate=_RATE,
-        ibuf=_SAMPLES * 4,   # small buffer; you can raise later if needed
+        ibuf=_SAMPLES * 4,   # small buffer;
     )
 
 
 def _bytes_to_int16_vec(buf, nbytes):
-    """
-    Convert first nbytes of buf into an int16 ulab vector (little-endian).
-    Returns a ulab numpy array dtype=int16.
-    """
+    
+    # Convert first nbytes of buf into an int16 ulab vector (little-endian).
+    # Returns a ulab numpy array dtype=int16.
+    
     # nbytes must be multiple of 2 for int16
     nbytes &= ~1
     if nbytes <= 0:
         return np.zeros(_SAMPLES, dtype=np.int16)
 
-    # Try fastest path first (if your ulab build supports it)
+    # Try fastest path first 
     try:
         x = np.frombuffer(buf, dtype=np.int16)
         n = nbytes // 2
@@ -60,9 +60,9 @@ def _bytes_to_int16_vec(buf, nbytes):
 
 
 def read_block():
-    """
-    Returns: ulab numpy vector of length _SAMPLES (dtype int16).
-    """
+
+    # Returns: ulab numpy vector of length _SAMPLES (dtype int16).
+
     if _i2s is None:
         raise RuntimeError("Call init_audio() first")
 

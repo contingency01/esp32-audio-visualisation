@@ -4,7 +4,7 @@ from ulab import numpy as np
 
 def _prepare(freqs, sample_rate, n):
 
-    #Prepare cosine/sine basis matrices
+    # Prepare cosine/sine basis matrices
     # Returns:
     # cos_mat: shape (nbands, n)
     # sin_mat: shape (nbands, n)
