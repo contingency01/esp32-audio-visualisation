@@ -38,7 +38,7 @@ esp32-audio-visualisation/
 ├── bands.py                   # Frequency band logic
 ├── config.py                  # TFT pin and screen config
 ├── display.py                 # Display drawing logic
-├── main.py                   # Main application controller
+├── main.py                    # Main application controller
 └── processing.py              # Goertzel / FFT-like calculations
 ```
 
