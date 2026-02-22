@@ -72,7 +72,6 @@ TFT_RES_PIN  = 12  # Reset
 TFT_DC_PIN   = 32  # Data/Command
 TFT_CS_PIN   = 26  # Chip select
 ```
-*(Example extracted from the repo)*  [oai_citation:0‡GitHub](https://raw.githubusercontent.com/contingency01/esp32-audio-visualisation/main/config.py)
 
 ---
 
